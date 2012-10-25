@@ -7,6 +7,7 @@ void initialize_board();
 void print_board();
 
 int N;
+int num_queens;
 char **board;
 
 int main(int argc, char *argv[]) {
@@ -16,10 +17,10 @@ int main(int argc, char *argv[]) {
       exit(1);
    }
    N = atoi(argv[1]);
+   num_queens = 0;
    initialize_board();
-   print_board();
 
-
+   place_queen(0, 0);
    return 0;
 }
 
@@ -27,8 +28,12 @@ void place_queen(int row, int col) {
    if (on_board(row, col)) {
       if (legal_move(row, col)) {
          board[row][col] = 'Q';
+         if (++num_queens == N) { print_board(); }
+
          place_queen(row+1, 0);
+
          board[row][col] = '*';
+         num_queens--;
       }
       place_queen(row, col+1);
    }
@@ -36,10 +41,21 @@ void place_queen(int row, int col) {
 
 int legal_move(int row, int col) {
    int queen_found = 0;
-   /* check col */
-   /* check left diag */
-   /* check diag */
-   if (queen_found) { return 0; }
+
+   /* check row and col */
+   for (int i=0; i < N; ++i) {
+      if (board[row][i] == 'Q' || board[i][col] == 'Q') { queen_found = 1; }
+   }
+   /* check diagonals */
+   for (int i=0; i < N; ++i) {
+      for (int j=0; j < N; ++j) {
+         if (abs(i-row) == abs(j-col)) {
+            if (board[i][j] == 'Q') { queen_found = 1; }
+         }
+      }
+   }
+
+   if (queen_found == 1) { return 0; }
    else { return 1; }
 }
 
@@ -61,10 +77,12 @@ void initialize_board() {
 }
 
 void print_board(){
+   printf("-- solution --\n");
    for (int i=0; i < N; ++i) {
       for (int j=0; j < N; ++j) {
          printf("%c ", board[i][j]);
       }
       printf("\n");
    }
+   printf("-----\n");
 }
