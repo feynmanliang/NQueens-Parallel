@@ -3,7 +3,7 @@ CFLAGS= -ansi -Wall -pedantic -g -std=c99
 
 CFILES=myQueue.c nqueens.c nqueens_parallel.c
 HFILES=myQueue.h nqueens.h
-OFILES=myQueue.o nqueens.o
+OFILES=myQueue.o nqueens.o nqueens_parallel.o
 BIN=nqueens
 
 all:	nqueens
@@ -18,4 +18,4 @@ clean:
 	rm -f *~ $(OFILES) ./bin/$(BIN)
 
 mpirun: 
-	mpirun -hostfile myhosts ./bin/$(BIN)
+	mpirun -hostfile myhosts ./bin/$(BIN) 4
