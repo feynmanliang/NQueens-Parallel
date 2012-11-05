@@ -49,6 +49,7 @@ void define_result_derivedtype();
 int N;
 MPI_Status status;
 
+/*
 int main(int argc, char **argv) {
    int myrank;
 
@@ -72,6 +73,7 @@ int main(int argc, char **argv) {
    MPI_Finalize();
    return 0;
 }
+*/
 
 void manager() {
    int numTasks, rank;

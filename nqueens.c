@@ -5,7 +5,6 @@
 
 #define NO_QUEEN -1
 
-/*
 int main(int argc, char *argv[]) {
   int N;
   Queue stateQueue;
@@ -41,7 +40,6 @@ int main(int argc, char *argv[]) {
   qclose(stateQueue);
   return 0;
 }
-*/
 
 State* generate_initial_states(int N) {
   State* states;
@@ -84,7 +82,7 @@ void print_state(State state) {
 SuccessorStates solve_next_row(State state) {
   int N = state->N;
   SuccessorStates successors = malloc(sizeof(SSuccessorStates));
-  State nextStates[N];
+  State* nextStates = malloc(sizeof(State) * N);
   int numSolutions = 0;
   int nextRow = state->numQueens;
 
@@ -99,8 +97,7 @@ SuccessorStates solve_next_row(State state) {
     }
 
     if (validMove) {
-      State nextState = state;
-      //State nextState = copy_state(state);
+      State nextState = copy_state(state);
       nextState->numQueens = state->numQueens + 1;
       nextState->queenPos[nextRow] = nextCol;
       nextStates[numSolutions] = nextState;
