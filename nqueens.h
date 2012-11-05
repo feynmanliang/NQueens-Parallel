@@ -7,22 +7,19 @@ typedef struct sState {
    int numQueens;
    int* queenPos;
 } SState;
-
 typedef SState* State;
 
-typedef struct sNextRow {
-   int numSolutions;
-   int* validColumns;
-} SNextRow;
+typedef struct sSuccessorStates {
+   int numStates ;
+   State* successorStates;
+} SSuccessorStates;
 
-typedef SNextRow* NextRow;
+typedef SSuccessorStates* SuccessorStates;
 
-public void solve_state(int, State);
-NextRow solve_next_layer(State);
-private void setup_state(State);
-private void place_queen(int, int);
-private int legal_move(int, int);
-private int on_board(int, int);
-private void initialize_board();
-private void clear_board();
-private void print_board();
+
+public SuccessorStates solve_next_row(State);
+public State* generate_initial_states(int);
+public void print_state(State);
+
+private int* generate_empty_board(int);
+private State copy_state(State);

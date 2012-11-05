@@ -3,7 +3,7 @@
  */
 #include <stdlib.h>
 #include <stdio.h>
-#include "myQueue.h"
+#include "./myQueue.h"
 
 Queue qopen(void) {
    Queue queue;

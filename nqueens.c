@@ -1,139 +1,126 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include "./nqueens.h"
-int N;
-int queens_left;
-char **board;
+#include "nqueens.h"
+#include "myQueue.h"
 
-#define DEBUG 0
+#define NO_QUEEN -1
 
-/*int main(int argc, char *argv[]) {
+int main(int argc, char *argv[]) {
+  int N;
+  Queue stateQueue;
+  State* initialStates;
+  void* buff;
+
   if (argc < 2) {
-  printf("usage: nqueens <board size>\n");
-  exit(1);
+    printf("usage: nqueens <board size>\n");
+    exit(1);
   }
-  int state[] = {0, 2};
-  solve_state(atoi(argv[1]), state);
 
+  N = atoi(argv[1]);
+  stateQueue = qopen();
+
+  initialStates = generate_initial_states(N);
+  for (int i=0; i < N; ++i) {
+    qput(stateQueue, (void *) initialStates[i]);
+  }
+
+
+  while(stateQueue->size != 0) {
+    qget(stateQueue, &buff);
+    State stateToSolve = (State) buff;
+    if (stateToSolve->numQueens == N) print_state(stateToSolve);
+    else {
+      SuccessorStates successors = solve_next_row(stateToSolve);
+      for (int i=0; i < successors->numStates; ++i) 
+        qput(stateQueue, (void *) successors->successorStates[i]);
+    }
+  }
+
+  free(initialStates);
+  qclose(stateQueue);
   return 0;
-  }*/
-
-void solve_state(int board_dim, State state) {
-   N = board_dim;
-   queens_left = N;
-
-   initialize_board();
-   setup_state(state);
-
-   place_queen(N - queens_left,0);
 }
 
+State* generate_initial_states(int N) {
+  State* states;
 
-NextRow solve_next_layer(State state) {
-   NextRow next = malloc(sizeof(SNextRow));
-   int numSolutions;
-   int rowToPlace = state->numQueens;
-   N = state->N;
-   queens_left = N;
-
-   initialize_board();
-   setup_state(state);
-
-   int* validCols = malloc(sizeof(int) * N);
-   for (int i=0; i < N; ++i) {
-      if (legal_move(rowToPlace, i)) {
-         validCols[numSolutions] = i;
-         numSolutions++;
-      }
-   }
-
-   validCols = realloc(validCols, sizeof(int)*numSolutions);
-   next->numSolutions = numSolutions;
-   next->validColumns = validCols;
-   return next;
+  states = malloc(sizeof(State) * N);
+  for (int i=0; i < N; ++i) {
+    State currentState;
+    currentState = malloc(sizeof(SState));
+    currentState->N = N;
+    currentState->numQueens = 1;
+    currentState->queenPos = generate_empty_board(N);
+    currentState->queenPos[0] = i;
+    states[i] = currentState;
+  }
+  return states;
 }
 
-void place_queen(int row, int col) {
-   if (on_board(row, col)) {
-      if (legal_move(row, col)) {
-         board[row][col] = 'Q';
-         queens_left--;
+int* generate_empty_board(int N) {
+  int* row;
 
-         if (queens_left == 0) { print_board(); }
-
-         place_queen(row+1, 0);
-
-         board[row][col] = '*';
-         queens_left++;
-      }
-      place_queen(row, col+1);
-   }
+  row = malloc(sizeof(int) * N);
+  for (int i=0; i < N; ++i) row[i] = NO_QUEEN;
+  return row;
 }
 
-int legal_move(int row, int col) {
-   int queen_found = 0;
-
-   /* check row and col */
-   for (int i=0; i < N; ++i) {
-      if (board[row][i] == 'Q' || board[i][col] == 'Q') { queen_found = 1; }
-   }
-   /* check diagonals */
-   for (int i=0; i < N; ++i) {
-      for (int j=0; j < N; ++j) {
-         if (abs(i-row) == abs(j-col)) {
-            if (board[i][j] == 'Q') { queen_found = 1; }
-         }
-      }
-   }
-
-   if (queen_found == 1) { return 0; }
-   else { return 1; }
+void print_state(State state) {
+  int N = state->N;
+  printf("-------\n");
+  for (int i=0; i < N; ++i) {
+    int rowQueenPos = state->queenPos[i];
+    for (int j=0; j < N; ++j) {
+      if ((rowQueenPos == NO_QUEEN) || (rowQueenPos != j)) printf(" . ");
+      else printf(" Q ");
+    }
+    printf("\n");
+  }
+  printf("-------\n");
 }
 
-int on_board(int row, int col) {
-   if (0 <= row && 0 <= col && N > row && N > col) { return 1; }
-   else { return 0; }
+SuccessorStates solve_next_row(State state) {
+  SuccessorStates successors;
+  successors = malloc(sizeof(SSuccessorStates));
+
+  int N = state->N;
+  int numSolutions = 0;
+  State* nextStates = malloc(sizeof(State) * N);
+
+  int nextRow = state->numQueens;
+
+  // all possible N col positions
+  for (int nextCol =0; nextCol<N; ++nextCol) {
+    int validMove = 1;
+
+    for (int row=0; row<nextRow; ++row) {
+      int col = state->queenPos[row];
+      if ((state->queenPos[row] == nextCol) || (abs(row-nextRow) == abs(col-nextCol)))
+        validMove = 0;
+    }
+
+    if (validMove) {
+      State nextState = copy_state(state);
+      nextState->numQueens = state->numQueens + 1;
+      nextState->queenPos[nextRow] = nextCol;
+      nextStates[numSolutions] = nextState;
+      numSolutions++;
+    }
+  }
+
+  successors->numStates = numSolutions;
+  successors->successorStates = nextStates;
+  return successors;
 }
 
-void initialize_board() {
-   board = malloc(sizeof(char *) * N);
-   for (int i=0; i < N; ++i) {
-      board[i] = malloc( sizeof(char) );
-   }
-   clear_board();
-}
-
-void setup_state(State state) {
-   int row, col;
-   int * queen_positions;
-
-   clear_board();
-   if (state != NULL) {
-      queen_positions = (int *) state->queenPos;
-      for (int i=0; i < state->numQueens; i++) {
-         row = i;
-         col = queen_positions[i];
-         board[row][col] = 'Q';
-         queens_left--;
-      }
-   }
-}
-
-void clear_board() {
-   for (int i=0; i < N; ++i) {
-      for (int j=0; j < N; ++j) {
-         board[i][j] = '*';
-      }
-   }
-}
-
-void print_board(){
-   printf("-solution-\n");
-   for (int i=0; i < N; ++i) {
-      for (int j=0; j < N; ++j) {
-         printf("%c ", board[i][j]);
-      }
-      printf("\n");
-   }
-   printf("---------\n");
+/* copies the state instance and returns pointer to new instance */
+State copy_state(State state) {
+  State stateCopy = malloc(sizeof(SState));
+  stateCopy->N = state->N;
+  stateCopy->numQueens = state->numQueens;
+  stateCopy->queenPos = generate_empty_board(state->N);
+  for (int i=0; i<(state->N); ++i) {
+    stateCopy->queenPos[i] = state->queenPos[i];
+  }
+  return stateCopy;
 }
