@@ -49,7 +49,6 @@ void define_result_derivedtype();
 int N;
 MPI_Status status;
 
-/*
 int main(int argc, char **argv) {
    int myrank;
 
@@ -73,7 +72,6 @@ int main(int argc, char **argv) {
    MPI_Finalize();
    return 0;
 }
-*/
 
 void manager() {
    int numTasks, rank;
@@ -98,13 +96,24 @@ void manager() {
       work = get_next_work_item(workQueue);
       printf("Sending to worker %i the following state:\n", rank);
       print_state(work);
-      msgsendwork(work, rank);
+
+      MPI_Send(&(work->N), 1, MPI_INT, rank, WORKTAG, MPI_COMM_WORLD);
+      MPI_Send(&(work->numQueens), 1, MPI_INT, rank, WORKTAG, MPI_COMM_WORLD);
+      MPI_Send(work->queenPos, N, MPI_INT, rank, WORKTAG, MPI_COMM_WORLD);
    }
 
    work = get_next_work_item(workQueue);
    // TODO: This currently depends on seeding the workers to not exhaust the initial queue
    while (work != NULL) {
-      msgrecvresult(result);
+      MPI_Recv(buffp, 1, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+      MPI_Recv(&(result->numStates), 1, MPI_INT, MANAGER, WORKTAG, MPI_COMM_WORLD, &status);
+      for (int i=0; i < result->numStates; ++i) {
+         State resultState = result->successorStates[i];
+         MPI_Recv(&(work->N), 1, MPI_INT, MANAGER, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+         MPI_Recv(&(work->numQueens), 1, MPI_INT, MANAGER, WORKTAG, MPI_COMM_WORLD, &status);
+         MPI_Recv(work->queenPos, N, MPI_INT, MANAGER, WORKTAG, MPI_COMM_WORLD, &status);
+      }
+
       printf("Received from worker %i\n", status.MPI_SOURCE);
       printf("numStates: %i", result->numStates);
 
@@ -130,12 +139,19 @@ void manager() {
 
 void worker() {
    State work = malloc(sizeof(SState));
+   work->queenPos= malloc(sizeof(int) * N);
+
    SuccessorStates result;
-
    for(;;) {
-      msgrecvwork(work, MANAGER); 
-
-      if (status.MPI_TAG == DIETAG) return;
+      MPI_Recv(&(work->N), 1, MPI_INT, MANAGER, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+      if (status.MPI_TAG == DIETAG) {
+         free(work);
+         return;
+      }
+      else {
+         MPI_Recv(&(work->numQueens), 1, MPI_INT, MANAGER, WORKTAG, MPI_COMM_WORLD, &status);
+         MPI_Recv(work->queenPos, N, MPI_INT, MANAGER, WORKTAG, MPI_COMM_WORLD, &status);
+      }
 
       printf("Received state with %i queens:\n", work->numQueens);
       print_state(work);
@@ -147,7 +163,13 @@ void worker() {
          print_state(result->successorStates[i]);
       }
 
-      msgsendresult(result, MANAGER); 
+      MPI_Send(&(result->numStates), 1, MPI_INT, MANAGER, WORKTAG, MPI_COMM_WORLD);
+      for (int i=0; i < result->numStates; ++i) {
+         State resultState = result->successorStates[i];
+         MPI_Send(&(resultState->N), 1, MPI_INT, MANAGER, WORKTAG, MPI_COMM_WORLD);
+         MPI_Send(&(resultState->numQueens), 1, MPI_INT, MANAGER, WORKTAG, MPI_COMM_WORLD);
+         MPI_Send(resultState->queenPos, N, MPI_INT, MANAGER, WORKTAG, MPI_COMM_WORLD);
+      }
    }
 }
 
