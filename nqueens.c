@@ -8,17 +8,17 @@ char **board;
 #define DEBUG 0
 
 /*int main(int argc, char *argv[]) {
-   if (argc < 2) {
-      printf("usage: nqueens <board size>\n");
-      exit(1);
-   }
-   int state[] = {0, 2};
-   solve_state(atoi(argv[1]), state);
+  if (argc < 2) {
+  printf("usage: nqueens <board size>\n");
+  exit(1);
+  }
+  int state[] = {0, 2};
+  solve_state(atoi(argv[1]), state);
 
-   return 0;
-}*/
+  return 0;
+  }*/
 
-void solve_state(int board_dim, int state[]) {
+void solve_state(int board_dim, State state) {
    N = board_dim;
    queens_left = N;
 
@@ -26,22 +26,31 @@ void solve_state(int board_dim, int state[]) {
    setup_state(state);
 
    place_queen(N - queens_left,0);
-   free(board);
 }
 
-void setup_state(void * state) {
-   int row, col;
-   int * queen_positions;
 
-   if (state != NULL) {
-      queen_positions = (int *) state;
-      for (int i=0; i < (sizeof(queen_positions) / sizeof(*queen_positions)) / 2; i++) {
-         row = queen_positions[2*i];
-         col = queen_positions[2*i+1];
-         board[row][col] = 'Q';
-         queens_left--;
+NextRow solve_next_layer(State state) {
+   NextRow next = malloc(sizeof(SNextRow));
+   int numSolutions;
+   int rowToPlace = state->numQueens;
+   N = state->N;
+   queens_left = N;
+
+   initialize_board();
+   setup_state(state);
+
+   int* validCols = malloc(sizeof(int) * N);
+   for (int i=0; i < N; ++i) {
+      if (legal_move(rowToPlace, i)) {
+         validCols[numSolutions] = i;
+         numSolutions++;
       }
    }
+
+   validCols = realloc(validCols, sizeof(int)*numSolutions);
+   next->numSolutions = numSolutions;
+   next->validColumns = validCols;
+   return next;
 }
 
 void place_queen(int row, int col) {
@@ -91,6 +100,26 @@ void initialize_board() {
    for (int i=0; i < N; ++i) {
       board[i] = malloc( sizeof(char) );
    }
+   clear_board();
+}
+
+void setup_state(State state) {
+   int row, col;
+   int * queen_positions;
+
+   clear_board();
+   if (state != NULL) {
+      queen_positions = (int *) state->queenPos;
+      for (int i=0; i < state->numQueens; i++) {
+         row = i;
+         col = queen_positions[i];
+         board[row][col] = 'Q';
+         queens_left--;
+      }
+   }
+}
+
+void clear_board() {
    for (int i=0; i < N; ++i) {
       for (int j=0; j < N; ++j) {
          board[i][j] = '*';
