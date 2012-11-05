@@ -1,10 +1,9 @@
-#CC=mpicc
-CC=gcc
+CC=mpicc
 CFLAGS= -ansi -Wall -pedantic -g -std=c99
 
-CFILES=nqueens.c myQueue.c
-HFILES=nqueens.h myQueue.h
-OFILES=nqueens.o myQueue.o
+CFILES=myQueue.c nqueens.c nqueens_parallel.c
+HFILES=myQueue.h nqueens.h
+OFILES=myQueue.o nqueens.o
 BIN=nqueens
 
 all:	nqueens

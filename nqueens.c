@@ -5,6 +5,7 @@
 
 #define NO_QUEEN -1
 
+/*
 int main(int argc, char *argv[]) {
   int N;
   Queue stateQueue;
@@ -40,6 +41,7 @@ int main(int argc, char *argv[]) {
   qclose(stateQueue);
   return 0;
 }
+*/
 
 State* generate_initial_states(int N) {
   State* states;
