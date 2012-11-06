@@ -28,9 +28,11 @@
 }
 
 int myrank, numTasks, myLoad;
+double startTime;
 MPI_Status status;
 
 int mpi_main(int argc, char **argv) {
+   startTime = MPI_Wtime();
    msgInit(argc, argv);
 
    if (myrank == 0) {
@@ -90,6 +92,7 @@ void manager() {
    msgKillAll();
 
    qclose(workQueue);
+   printf("Total run time: %f\n", MPI_Wtime() - startTime);
    return;
 }
 
