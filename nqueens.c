@@ -84,7 +84,7 @@ void print_state(State state) {
 SuccessorStates solve_next_row(State state) {
   int N = state->N;
   SuccessorStates successors = malloc(sizeof(SSuccessorStates));
-  State* nextStates = malloc(sizeof(State) * N);
+  successors->successorStates = malloc(sizeof(State) * N);
   int numSolutions = 0;
   int nextRow = state->numQueens;
 
@@ -102,13 +102,12 @@ SuccessorStates solve_next_row(State state) {
       State nextState = copy_state(state);
       nextState->numQueens = state->numQueens + 1;
       nextState->queenPos[nextRow] = nextCol;
-      nextStates[numSolutions] = nextState;
+      successors->successorStates[numSolutions] = nextState;
       numSolutions++;
     }
   }
 
   successors->numStates = numSolutions;
-  successors->successorStates = nextStates;
   return successors;
 }
 
