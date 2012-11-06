@@ -1,5 +1,4 @@
 #define WORKTAG 42
-#define WAITTAG 36
 #define DIETAG 20
 #define MANAGER 0
 

@@ -25,9 +25,6 @@
 #define msgRecvWork(from, work) {\
    MPI_Recv(&(work->N), 1, MPI_INT, from, MPI_ANY_TAG, MPI_COMM_WORLD, &status);\
    if (status.MPI_TAG == DIETAG) { msgKillNode(); }\
-   else if (status.MPI_TAG == WAITTAG) {\
-      continue;\
-   }\
    else {\
       MPI_Recv(&(work->numQueens), 1, MPI_INT, from, WORKTAG, MPI_COMM_WORLD, &status);\
       MPI_Recv(work->queenPos, work->N, MPI_INT, from, WORKTAG, MPI_COMM_WORLD, &status);\

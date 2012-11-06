@@ -27,11 +27,6 @@
    return;\
 }
 
-#define msgSendWait(to) {\
-   MPI_Send(0, 0, MPI_INT, to, WAITTAG, MPI_COMM_WORLD);\
-   continue;\
-}
-
 int myrank, numTasks, myLoad;
 MPI_Status status;
 
