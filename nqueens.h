@@ -16,7 +16,6 @@ typedef struct sSuccessorStates {
 
 typedef SSuccessorStates* SuccessorStates;
 
-
 public SuccessorStates solve_next_row(State);
 public State* generate_initial_states(int);
 public void print_state(State);
