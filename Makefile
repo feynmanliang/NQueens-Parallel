@@ -18,4 +18,4 @@ clean:
 	rm -f *~ $(OFILES) ./bin/$(BIN)
 
 mpirun: 
-	mpirun -hostfile myhosts ./bin/$(BIN) 5
+	mpirun -hostfile myhosts ./bin/$(BIN) 9

@@ -1,6 +1,7 @@
+#include <mpi.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <mpi.h>
+#include <unistd.h>
 #include "./myQueue.h"
 #include "./nqueens.h" // problem specific header
 #include "./nqueens_parallel.h" // problem specific header
@@ -24,6 +25,11 @@
 #define msgKillNode() {\
    MPI_Send(&myLoad, 1, MPI_INT, MANAGER, DIETAG, MPI_COMM_WORLD);\
    return;\
+}
+
+#define msgSendWait(to) {\
+   MPI_Send(0, 0, MPI_INT, to, WAITTAG, MPI_COMM_WORLD);\
+   continue;\
 }
 
 int myrank, numTasks, myLoad;
@@ -55,10 +61,12 @@ void manager() {
       if (numOutstanding == 0 && workQueue->size != 0) {
          for (int rank = 1; rank < numTasks; ++rank) {
             work_t work = get_next_work_item(workQueue);
-            if (work == NULL) break;
-            msgSendWork(rank, work)
-            numOutstanding++;
-            free(work);
+            if (work == NULL) { break; }
+            else {
+               msgSendWork(rank, work)
+               numOutstanding++;
+               free(work);
+            }
          }
       }
 
@@ -74,7 +82,9 @@ void manager() {
       // respond with new work item (if available)
       work_t work = get_next_work_item(workQueue);
       if (work != NULL) {
-         msgSendWork(status.MPI_SOURCE, work);
+         int nextNode = (status.MPI_SOURCE + 1) % numTasks;
+         if (nextNode == 0) nextNode++;
+         msgSendWork(nextNode, work);
          numOutstanding++;
       }
       free(work);
