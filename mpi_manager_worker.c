@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <stdlib.h>
 #include <mpi.h>
 #include "./myQueue.h"
@@ -13,11 +14,19 @@
 
 #define msgKillAll() {\
    for (int rank = 1; rank < numTasks; ++rank) {\
+      int load;\
       MPI_Send(0, 0, MPI_INT, rank, DIETAG, MPI_COMM_WORLD);\
+      MPI_Recv(&load, 1, MPI_INT, rank, DIETAG, MPI_COMM_WORLD, &status);\
+      printf("Node %i computed load of %i\n", rank, load);\
    }\
 }
 
-int myrank, numTasks;
+#define msgKillNode() {\
+   MPI_Send(&myLoad, 1, MPI_INT, MANAGER, DIETAG, MPI_COMM_WORLD);\
+   return;\
+}
+
+int myrank, numTasks, myLoad;
 MPI_Status status;
 
 int mpi_main(int argc, char **argv) {
@@ -86,6 +95,7 @@ void worker() {
    while (1) {
       msgRecvWork(MANAGER, work);
       result_t result = do_work(work);
+      myLoad += result->numStates;
       msgSendResult(MANAGER, result);
       free(result);
    }
