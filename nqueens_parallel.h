@@ -15,7 +15,7 @@
    work->queenPos = malloc(sizeof(int) * N);\
 }
 
-#define msgSendResult(to, result) {\
+//#define msgSendResult(to, result) {\
    MPI_Send(&(result->numStates), 1, MPI_INT, to, WORKTAG, MPI_COMM_WORLD);\
    for (int i=0; i < result->numStates; ++i) {\
       State resultState = result->successorStates[i];\
@@ -24,7 +24,7 @@
    }\
 }
 
-#define msgRecvResult(result) {\
+//#define msgRecvResult(result) {\
    extern int N;\
    MPI_Recv(&(result->numStates), 1, MPI_INT, MPI_ANY_SOURCE, WORKTAG, MPI_COMM_WORLD, &status);\
    for (int i = 0; i < result->numStates; ++i) {\

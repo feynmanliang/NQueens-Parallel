@@ -12,6 +12,8 @@ result_t do_work(work_t work);
 void process_results(result_t result, Queue workQueue);
 void* pack_work(work_t);
 work_t unpack_work(void*);
+void* pack_result(result_t);
+result_t unpack_result(void*);
 
 int main(int argc, char **argv) {
    if (argc < 2) {
@@ -20,7 +22,7 @@ int main(int argc, char **argv) {
    }
    N = atoi(argv[1]);
    mpi_main(argc,argv, &generate_initial_workQueue, &do_work, 
-     &pack_work, &unpack_work, &process_results);
+     &pack_work, &unpack_work, &pack_result, &unpack_result, &process_results);
    return 0;
 }
 
@@ -69,4 +71,38 @@ work_t unpack_work(void* packedWork) {
    for (int i=0; i < work->numQueens; ++i) work->queenPos[i] = intPackedWork[3+i];
 
    return work;
+}
+
+void* pack_result(result_t result) {
+   int blockSize = sizeof(int) * (1 + 1);
+   for (int i=0; i < result->numStates; ++i) 
+      blockSize += sizeof(int) * (3 + result->successorStates[i]->numQueens);
+   
+   int* packedResult = malloc(blockSize);
+   int offset = 0;
+   packedResult[offset++] = blockSize;
+   packedResult[offset++] = result->numStates;
+   for (int i=0; i < result->numStates; ++i) {
+      int* packedWork = pack_work(result->successorStates[i]);
+      for (int j=0; j<(packedWork[0]/sizeof(int)); ++j) 
+         packedResult[offset++] = packedWork[j];
+   }
+   return packedResult;
+}
+
+result_t unpack_result(void* packedResult) {
+   int* intPackedResult = (int*) packedResult;
+   result_t result = malloc(sizeof(SSuccessorStates));
+
+   int offset = 1;
+   result->numStates = intPackedResult[offset++];
+   result->successorStates = malloc(sizeof(State) * (result->numStates));
+   
+   for (int i=0; i<result->numStates; ++i) {
+      State succ = unpack_work(intPackedResult+offset);
+      result->successorStates[i] = succ;
+      offset += (intPackedResult[offset]/sizeof(int));
+   }
+
+   return result;
 }

@@ -32,6 +32,26 @@
    }\
 }
 
+#define msgSendResult(to, result) {\
+   MPI_Send(&(result->numStates), 1, MPI_INT, to, WORKTAG, MPI_COMM_WORLD);\
+   for (int i=0; i < result->numStates; ++i) {\
+      State resultState = result->successorStates[i];\
+      msgSendWork(to, resultState);\
+      free(resultState);\
+   }\
+}
+
+#define msgRecvResult(result) {\
+   extern int N;\
+   MPI_Recv(&(result->numStates), 1, MPI_INT, MPI_ANY_SOURCE, WORKTAG, MPI_COMM_WORLD, &status);\
+   for (int i = 0; i < result->numStates; ++i) {\
+      State resultState = malloc(sizeof(SState));\
+      resultState->queenPos = malloc(sizeof(int) * N);\
+      msgRecvWork(status.MPI_SOURCE, resultState);\
+      result->successorStates[i] = resultState;\
+   }\
+}
+
 #define msgKillAll() {\
    for (int rank = 1; rank < numTasks; ++rank) {\
       int load;\
@@ -52,15 +72,15 @@ MPI_Status status;
 
 int mpi_main(int argc, char **argv, void generate_initial_workQueue(Queue),
   result_t do_work(State), void* pack_work(work_t), work_t unpack_work(void*),
-  void process_results(result_t, Queue)) {
+  void* pack_result(result_t), result_t unpack_result(void*), void process_results(result_t, Queue)) {
    startTime = MPI_Wtime();
    msgInit(argc, argv);
 
    if (myrank == 0) {
-      manager(generate_initial_workQueue, pack_work, unpack_work, process_results);
+      manager(generate_initial_workQueue, pack_work, unpack_work, unpack_result, process_results);
    }
    else {
-      worker(do_work, pack_work, unpack_work);
+      worker(do_work, pack_work, unpack_work, pack_result);
    }
 
    MPI_Finalize();
@@ -68,7 +88,7 @@ int mpi_main(int argc, char **argv, void generate_initial_workQueue(Queue),
 }
 
 void manager(void generate_initial_workQueue(Queue), void* pack_work(work_t), work_t unpack_work(void*),
-  void process_results(result_t, Queue)) {
+  result_t unpack_result (void*), void process_results(result_t, Queue)) {
    Queue workQueue = qopen();
    int numOutstanding = 0; // track outstanding messages to know when to terminate
 
@@ -118,7 +138,8 @@ void manager(void generate_initial_workQueue(Queue), void* pack_work(work_t), wo
    return;
 }
 
-void worker(result_t do_work(work_t), void* pack_work(work_t), work_t unpack_work(void*)) {
+void worker(result_t do_work(work_t), void* pack_work(work_t), work_t unpack_work(void*), 
+  void* pack_result(result_t)) {
    MPI_Status status;
    work_t work;
    init_work_t(work);
@@ -126,6 +147,7 @@ void worker(result_t do_work(work_t), void* pack_work(work_t), work_t unpack_wor
       msgRecvWork(MANAGER, work);
       result_t result = do_work(work);
       myLoad += result->numStates;
+
       msgSendResult(MANAGER, result);
       free(result);
    }
