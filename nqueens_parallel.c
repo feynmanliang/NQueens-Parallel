@@ -10,6 +10,8 @@
 void generate_initial_workQueue(Queue workQueue);
 result_t do_work(work_t work);
 void process_results(result_t result, Queue workQueue);
+void* pack_work(work_t);
+work_t unpack_work(void*);
 
 int main(int argc, char **argv) {
    if (argc < 2) {
@@ -17,7 +19,8 @@ int main(int argc, char **argv) {
       exit(1);
    }
    N = atoi(argv[1]);
-   mpi_main(argc,argv, &generate_initial_workQueue, &do_work, &process_results);
+   mpi_main(argc,argv, &generate_initial_workQueue, &do_work, 
+     &pack_work, &unpack_work, &process_results);
    return 0;
 }
 
@@ -42,4 +45,28 @@ void process_results(SuccessorStates result, Queue workQueue) {
          qput(workQueue, (void *) resultState);
       }
    }
+}
+
+// first int indicates size of packed block
+void* pack_work(work_t work) {
+   int blockSize = sizeof(int) * (1 + 2 + work->numQueens);
+   int* packedWork = malloc(blockSize);
+   packedWork[0] = blockSize;
+   packedWork[1] = work->N;
+   packedWork[2] = work->numQueens;
+   for (int i=0; i < work->numQueens; ++i) packedWork[3+i] = work->queenPos[i];
+   return packedWork;
+}
+
+work_t unpack_work(void* packedWork) {
+   int* intPackedWork = (int*) packedWork;
+   work_t work = malloc(sizeof(SState));
+
+   work->N = intPackedWork[1];
+   work->numQueens = intPackedWork[2];
+
+   work->queenPos = malloc(sizeof(int) * work->N);
+   for (int i=0; i < work->numQueens; ++i) work->queenPos[i] = intPackedWork[3+i];
+
+   return work;
 }

@@ -13,6 +13,25 @@
    MPI_Comm_size(MPI_COMM_WORLD, &numTasks);\
 }
 
+#define msgSendWork(to, work) {\
+   void* packedWork = pack_work(work);\
+   MPI_Send(packedWork, ((int*)packedWork)[0], MPI_BYTE, to, WORKTAG, MPI_COMM_WORLD);\
+}
+
+#define msgRecvWork(from, work) {\
+   MPI_Probe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);\
+   if (status.MPI_TAG == DIETAG) {\
+      MPI_Recv(&(work->N), 1, MPI_INT, from, MPI_ANY_TAG, MPI_COMM_WORLD, &status);\
+      msgKillNode();\
+   }\
+   else {\
+      MPI_Get_count(&status, MPI_BYTE, &msgSize);\
+      int* packedWork = malloc(msgSize);\
+      MPI_Recv(packedWork, msgSize, MPI_BYTE, from, WORKTAG, MPI_COMM_WORLD, &status);\
+      work = unpack_work(packedWork);\
+   }\
+}
+
 #define msgKillAll() {\
    for (int rank = 1; rank < numTasks; ++rank) {\
       int load;\
@@ -27,27 +46,29 @@
    return;\
 }
 
-int myrank, numTasks, myLoad;
+int myrank, numTasks, myLoad, msgSize;
 double startTime;
 MPI_Status status;
 
 int mpi_main(int argc, char **argv, void generate_initial_workQueue(Queue),
-  result_t do_work(State), void process_results(result_t, Queue)) {
+  result_t do_work(State), void* pack_work(work_t), work_t unpack_work(void*),
+  void process_results(result_t, Queue)) {
    startTime = MPI_Wtime();
    msgInit(argc, argv);
 
    if (myrank == 0) {
-      manager(generate_initial_workQueue, process_results);
+      manager(generate_initial_workQueue, pack_work, unpack_work, process_results);
    }
    else {
-      worker(do_work);
+      worker(do_work, pack_work, unpack_work);
    }
 
    MPI_Finalize();
    return 0;
 }
 
-void manager(void generate_initial_workQueue(Queue), void process_results(result_t, Queue)) {
+void manager(void generate_initial_workQueue(Queue), void* pack_work(work_t), work_t unpack_work(void*),
+  void process_results(result_t, Queue)) {
    Queue workQueue = qopen();
    int numOutstanding = 0; // track outstanding messages to know when to terminate
 
@@ -97,7 +118,7 @@ void manager(void generate_initial_workQueue(Queue), void process_results(result
    return;
 }
 
-void worker(result_t do_work(work_t)) {
+void worker(result_t do_work(work_t), void* pack_work(work_t), work_t unpack_work(void*)) {
    MPI_Status status;
    work_t work;
    init_work_t(work);

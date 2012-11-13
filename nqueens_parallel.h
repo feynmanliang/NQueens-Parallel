@@ -15,22 +15,6 @@
    work->queenPos = malloc(sizeof(int) * N);\
 }
 
-// MPI Messaging Macros
-#define msgSendWork(to, work) {\
-   MPI_Send(&(work->N), 1, MPI_INT, to, WORKTAG, MPI_COMM_WORLD);\
-   MPI_Send(&(work->numQueens), 1, MPI_INT, to, WORKTAG, MPI_COMM_WORLD);\
-   MPI_Send(work->queenPos, work->N, MPI_INT, to, WORKTAG, MPI_COMM_WORLD);\
-}
-
-#define msgRecvWork(from, work) {\
-   MPI_Recv(&(work->N), 1, MPI_INT, from, MPI_ANY_TAG, MPI_COMM_WORLD, &status);\
-   if (status.MPI_TAG == DIETAG) { msgKillNode(); }\
-   else {\
-      MPI_Recv(&(work->numQueens), 1, MPI_INT, from, WORKTAG, MPI_COMM_WORLD, &status);\
-      MPI_Recv(work->queenPos, work->N, MPI_INT, from, WORKTAG, MPI_COMM_WORLD, &status);\
-   }\
-}
-
 #define msgSendResult(to, result) {\
    MPI_Send(&(result->numStates), 1, MPI_INT, to, WORKTAG, MPI_COMM_WORLD);\
    for (int i=0; i < result->numStates; ++i) {\
