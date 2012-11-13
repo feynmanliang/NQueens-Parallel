@@ -1,4 +1,5 @@
 #include <mpi.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -60,11 +61,13 @@ typedef void* result_t;
    return;\
 }
 
+pthread_t callThd[2];
+
 int myrank, numTasks, myLoad, msgSize;
 double startTime;
 MPI_Status status;
 
-int mpi_main(int argc, char **argv, void generate_initial_workQueue(Queue),
+int mpi_main(int argc, char **argv, void* generate_initial_workQueue(void*),
   result_t do_work(work_t), void* pack_work(work_t), work_t unpack_work(void*),
   void* pack_result(result_t), result_t unpack_result(void*), void process_results(result_t, Queue)) {
    startTime = MPI_Wtime();
@@ -81,11 +84,16 @@ int mpi_main(int argc, char **argv, void generate_initial_workQueue(Queue),
    return 0;
 }
 
-void manager(void generate_initial_workQueue(Queue), void* pack_work(work_t), work_t unpack_work(void*),
+void manager(void* generate_initial_workQueue(void*), void* pack_work(work_t), work_t unpack_work(void*),
   result_t unpack_result (void*), void process_results(result_t, Queue)) {
    Queue workQueue = qopen();
    int numOutstanding = 0; // track outstanding messages to know when to terminate
 
+   //pthread_attr_t attr;
+   //pthread_attr_init(&attr);
+   //pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
+
+   //pthread_create(&callThd[0], &attr, generate_initial_workQueue, workQueue);
    generate_initial_workQueue(workQueue);
 
    // keep going until workQueue is exhausted and no outstanding nodes

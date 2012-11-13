@@ -1,5 +1,5 @@
 CC=mpicc
-CFLAGS= -ansi -Wall -pedantic -g -std=c99
+CFLAGS= -ansi -Wall -pedantic -g -std=c99 -pthread
 
 CFILES=myQueue.c nqueens.c nqueens_parallel.c mpi_manager_worker.c
 HFILES=myQueue.h nqueens.h mpi_manager_worker.h

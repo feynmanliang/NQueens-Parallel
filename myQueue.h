@@ -1,6 +1,7 @@
 /* 
  * queue.h -- public interface to the queue module
  */
+#include <pthread.h>
 #define public
 #define private
 
@@ -13,6 +14,7 @@ typedef SNode* Node;
 
 typedef struct SQueue {
    int size;
+   pthread_mutex_t queueLock;
    Node head;
    Node last;
 } SQueue;

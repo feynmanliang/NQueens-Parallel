@@ -9,7 +9,7 @@
 typedef State work_t;
 typedef SuccessorStates result_t;
 
-void generate_initial_workQueue(Queue workQueue);
+void* generate_initial_workQueue(void*);
 void* do_work(void* work);
 void process_results(void* result, Queue workQueue);
 void* pack_work(void* work);
@@ -18,23 +18,29 @@ void* pack_result(void* result);
 void* unpack_result(void* packedResult);
 
 int N;
+int depthPerNode = 1;
 
 int main(int argc, char **argv) {
    if (argc < 2) {
-      printf("usage: nqueens_parallel <board dimension>\n");
+      printf("usage: nqueens_parallel <board dimension> <depth per node>\n");
       exit(1);
    }
    N = atoi(argv[1]);
-   mpi_main(argc,argv, &generate_initial_workQueue, &do_work, 
+   if (argc > 2) depthPerNode = atoi(argv[2]);
+
+   mpi_main(argc, argv, &generate_initial_workQueue, &do_work, 
      &pack_work, &unpack_work, &pack_result, &unpack_result, &process_results);
    return 0;
 }
 
-void generate_initial_workQueue(Queue workQueue) {
+void* generate_initial_workQueue(void* queueptr) {
+   Queue workQueue = (Queue) queueptr;
    State* initialStates;
    initialStates = generate_initial_states(N);
-   for (int i = 0; i < N; ++i) { qput(workQueue, (void *) initialStates[i]); }
+   for (int i = 0; i < N; ++i) { 
+      qput(workQueue, (void *) initialStates[i]); }
    free(initialStates);
+   //pthread_exit((void*) 0);
 }
 
 void* do_work(void* workptr) {
