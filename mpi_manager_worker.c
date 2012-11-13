@@ -31,22 +31,23 @@ int myrank, numTasks, myLoad;
 double startTime;
 MPI_Status status;
 
-int mpi_main(int argc, char **argv) {
+int mpi_main(int argc, char **argv, void generate_initial_workQueue(Queue),
+  result_t do_work(State), void process_results(result_t, Queue)) {
    startTime = MPI_Wtime();
    msgInit(argc, argv);
 
    if (myrank == 0) {
-      manager();
+      manager(generate_initial_workQueue, process_results);
    }
    else {
-      worker();
+      worker(do_work);
    }
 
    MPI_Finalize();
    return 0;
 }
 
-void manager() {
+void manager(void generate_initial_workQueue(Queue), void process_results(result_t, Queue)) {
    Queue workQueue = qopen();
    int numOutstanding = 0; // track outstanding messages to know when to terminate
 
@@ -96,7 +97,7 @@ void manager() {
    return;
 }
 
-void worker() {
+void worker(result_t do_work(work_t)) {
    MPI_Status status;
    work_t work;
    init_work_t(work);

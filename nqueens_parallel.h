@@ -52,7 +52,3 @@
 }
 
 public int N;
-
-public void generate_initial_workQueue(Queue workQueue);
-public void process_results(SuccessorStates result, Queue workQueue);
-public SuccessorStates do_work(State work);
