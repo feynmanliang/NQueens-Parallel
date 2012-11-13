@@ -3,25 +3,29 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include "./myQueue.h"
-#include "./nqueens.h" // problem specific header
-#include "./nqueens_parallel.h" // problem specific header
 #include "./mpi_manager_worker.h"
+
+#define WORKTAG 42
+#define DIETAG 20
+#define MANAGER 0
+
+typedef void* work_t;
+typedef void* result_t;
 
 #define msgInit(argc, argv) {\
    MPI_Init(&argc, &argv);\
    MPI_Comm_rank(MPI_COMM_WORLD, &myrank);\
    MPI_Comm_size(MPI_COMM_WORLD, &numTasks);\
 }
-
 #define msgSendWork(to, work) {\
    void* packedWork = pack_work(work);\
-   MPI_Send(packedWork, ((int*)packedWork)[0], MPI_BYTE, to, WORKTAG, MPI_COMM_WORLD);\
+   MPI_Send(packedWork, *((int*)packedWork), MPI_BYTE, to, WORKTAG, MPI_COMM_WORLD);\
 }
-
 #define msgRecvWork(from, work) {\
-   MPI_Probe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);\
+   free(work);\
+   MPI_Probe(from, MPI_ANY_TAG, MPI_COMM_WORLD, &status);\
    if (status.MPI_TAG == DIETAG) {\
-      MPI_Recv(&(work->N), 1, MPI_INT, from, MPI_ANY_TAG, MPI_COMM_WORLD, &status);\
+      MPI_Recv(0, 0, MPI_INT, from, MPI_ANY_TAG, MPI_COMM_WORLD, &status);\
       msgKillNode();\
    }\
    else {\
@@ -31,27 +35,18 @@
       work = unpack_work(packedWork);\
    }\
 }
-
 #define msgSendResult(to, result) {\
-   MPI_Send(&(result->numStates), 1, MPI_INT, to, WORKTAG, MPI_COMM_WORLD);\
-   for (int i=0; i < result->numStates; ++i) {\
-      State resultState = result->successorStates[i];\
-      msgSendWork(to, resultState);\
-      free(resultState);\
-   }\
+   void* packedResult = pack_result(result);\
+   MPI_Send(packedResult, *((int*)packedResult), MPI_BYTE, to, WORKTAG, MPI_COMM_WORLD);\
 }
-
 #define msgRecvResult(result) {\
-   extern int N;\
-   MPI_Recv(&(result->numStates), 1, MPI_INT, MPI_ANY_SOURCE, WORKTAG, MPI_COMM_WORLD, &status);\
-   for (int i = 0; i < result->numStates; ++i) {\
-      State resultState = malloc(sizeof(SState));\
-      resultState->queenPos = malloc(sizeof(int) * N);\
-      msgRecvWork(status.MPI_SOURCE, resultState);\
-      result->successorStates[i] = resultState;\
-   }\
+   free(result);\
+   MPI_Probe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);\
+   MPI_Get_count(&status, MPI_BYTE, &msgSize);\
+   int* packedResult = malloc(msgSize);\
+   MPI_Recv(packedResult, msgSize, MPI_BYTE, status.MPI_SOURCE, WORKTAG, MPI_COMM_WORLD, &status);\
+   result = unpack_result(packedResult);\
 }
-
 #define msgKillAll() {\
    for (int rank = 1; rank < numTasks; ++rank) {\
       int load;\
@@ -60,7 +55,6 @@
       printf("Node %i computed load of %i\n", rank, load);\
    }\
 }
-
 #define msgKillNode() {\
    MPI_Send(&myLoad, 1, MPI_INT, MANAGER, DIETAG, MPI_COMM_WORLD);\
    return;\
@@ -71,7 +65,7 @@ double startTime;
 MPI_Status status;
 
 int mpi_main(int argc, char **argv, void generate_initial_workQueue(Queue),
-  result_t do_work(State), void* pack_work(work_t), work_t unpack_work(void*),
+  result_t do_work(work_t), void* pack_work(work_t), work_t unpack_work(void*),
   void* pack_result(result_t), result_t unpack_result(void*), void process_results(result_t, Queue)) {
    startTime = MPI_Wtime();
    msgInit(argc, argv);
@@ -110,8 +104,7 @@ void manager(void generate_initial_workQueue(Queue), void* pack_work(work_t), wo
       }
 
       // receive a result from an outstanding node
-      result_t result;
-      init_result_t(result);
+      result_t result = malloc(sizeof(result_t));
       msgRecvResult(result);
       numOutstanding--;
 
@@ -141,12 +134,11 @@ void manager(void generate_initial_workQueue(Queue), void* pack_work(work_t), wo
 void worker(result_t do_work(work_t), void* pack_work(work_t), work_t unpack_work(void*), 
   void* pack_result(result_t)) {
    MPI_Status status;
-   work_t work;
-   init_work_t(work);
+   work_t work = malloc(sizeof(work_t));
    while (1) {
       msgRecvWork(MANAGER, work);
+      myLoad += 1;
       result_t result = do_work(work);
-      myLoad += result->numStates;
 
       msgSendResult(MANAGER, result);
       free(result);
@@ -162,7 +154,7 @@ work_t get_next_work_item(Queue workQueue) {
    void* buff;
 
    result = qget(workQueue, &buff);
-   workItem = (State) buff;
+   workItem = (work_t) buff;
    if (result) return NULL;
    else return workItem;
 }

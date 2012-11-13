@@ -4,16 +4,20 @@
 #include <mpi.h>
 #include "./nqueens.h"
 #include "./myQueue.h"
-#include "./nqueens_parallel.h"
 #include "./mpi_manager_worker.h"
 
+typedef State work_t;
+typedef SuccessorStates result_t;
+
 void generate_initial_workQueue(Queue workQueue);
-result_t do_work(work_t work);
-void process_results(result_t result, Queue workQueue);
-void* pack_work(work_t);
-work_t unpack_work(void*);
-void* pack_result(result_t);
-result_t unpack_result(void*);
+void* do_work(void* work);
+void process_results(void* result, Queue workQueue);
+void* pack_work(void* work);
+void* unpack_work(void* packedWork);
+void* pack_result(void* result);
+void* unpack_result(void* packedResult);
+
+int N;
 
 int main(int argc, char **argv) {
    if (argc < 2) {
@@ -33,12 +37,14 @@ void generate_initial_workQueue(Queue workQueue) {
    free(initialStates);
 }
 
-result_t do_work(State work) {
-   SuccessorStates successors = solve_next_row(work);
+void* do_work(void* workptr) {
+   work_t work = (work_t) workptr;
+   result_t successors = solve_next_row(work);
    return successors;
 }
 
-void process_results(SuccessorStates result, Queue workQueue) {
+void process_results(void* resultptr, Queue workQueue) {
+   result_t result = (result_t) resultptr;
    if (result->numStates == 0) return;
    for (int i=0; i < result->numStates; ++i) {
       State resultState = result->successorStates[i];
@@ -50,7 +56,8 @@ void process_results(SuccessorStates result, Queue workQueue) {
 }
 
 // first int indicates size of packed block
-void* pack_work(work_t work) {
+void* pack_work(void* workptr) {
+   work_t work = (work_t) workptr;
    int blockSize = sizeof(int) * (1 + 2 + work->numQueens);
    int* packedWork = malloc(blockSize);
    packedWork[0] = blockSize;
@@ -60,7 +67,7 @@ void* pack_work(work_t work) {
    return packedWork;
 }
 
-work_t unpack_work(void* packedWork) {
+void* unpack_work(void* packedWork) {
    int* intPackedWork = (int*) packedWork;
    work_t work = malloc(sizeof(SState));
 
@@ -73,7 +80,8 @@ work_t unpack_work(void* packedWork) {
    return work;
 }
 
-void* pack_result(result_t result) {
+void* pack_result(void* resultptr) {
+   result_t result = (result_t) resultptr;
    int blockSize = sizeof(int) * (1 + 1);
    for (int i=0; i < result->numStates; ++i) 
       blockSize += sizeof(int) * (3 + result->successorStates[i]->numQueens);
@@ -90,7 +98,7 @@ void* pack_result(result_t result) {
    return packedResult;
 }
 
-result_t unpack_result(void* packedResult) {
+void* unpack_result(void* packedResult) {
    int* intPackedResult = (int*) packedResult;
    result_t result = malloc(sizeof(SSuccessorStates));
 
