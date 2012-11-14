@@ -59,7 +59,9 @@ void process_results(void* resultptr, Queue workQueue) {
    if (result->numStates == 0) return;
    for (int i=0; i < result->numStates; ++i) {
       State resultState = result->successorStates[i];
-      if (resultState->numQueens == resultState->N) print_state(resultState);
+      if (resultState->numQueens == resultState->N) {
+         print_state(resultState);
+      }
       else {
          qput(workQueue, (void *) resultState);
       }
