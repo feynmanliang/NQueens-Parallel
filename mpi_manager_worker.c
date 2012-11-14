@@ -36,13 +36,14 @@ typedef void* result_t;
       work = unpack_work(packedWork);\
    }\
 }
-#define msgSendResult(to, result) {\
+#define msgSendResult(to, numResults, result) {\
+   MPI_Send(&numResults, 1, MPI_INT, to, WORKTAG, MPI_COMM_WORLD);\
    void* packedResult = pack_result(result);\
    MPI_Send(packedResult, *((int*)packedResult), MPI_BYTE, to, WORKTAG, MPI_COMM_WORLD);\
 }
-#define msgRecvResult(result) {\
+#define msgRecvResult(from, result) {\
    free(result);\
-   MPI_Probe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);\
+   MPI_Probe(from, MPI_ANY_TAG, MPI_COMM_WORLD, &status);\
    MPI_Get_count(&status, MPI_BYTE, &msgSize);\
    int* packedResult = malloc(msgSize);\
    MPI_Recv(packedResult, msgSize, MPI_BYTE, status.MPI_SOURCE, WORKTAG, MPI_COMM_WORLD, &status);\
@@ -64,10 +65,26 @@ typedef void* result_t;
 pthread_t callThd[2];
 
 int myrank, numTasks, myLoad, msgSize;
+int generatorComplete = 0;
 double startTime;
 MPI_Status status;
 
-int mpi_main(int argc, char **argv, void* generate_initial_workQueue(void*),
+typedef struct sThreadData {
+   Queue workQueue;
+   void (* generate_initial_workQueue)(Queue);
+   result_t (* do_work)(work_t); 
+   void* (* pack_work)(work_t); 
+   work_t (* unpack_work)(void*);
+   void* (* pack_result)(result_t);
+   result_t (* unpack_result)(void*);
+   void (* process_results)(result_t, Queue);
+} SThreadData;
+typedef SThreadData* ThreadData;
+void* generator_thread(void* threadDataptr);
+void* listener_thread(void* threadDataptr);
+
+
+int mpi_main(int argc, char **argv, void generate_initial_workQueue(Queue),
   result_t do_work(work_t), void* pack_work(work_t), work_t unpack_work(void*),
   void* pack_result(result_t), result_t unpack_result(void*), void process_results(result_t, Queue)) {
    startTime = MPI_Wtime();
@@ -81,21 +98,25 @@ int mpi_main(int argc, char **argv, void* generate_initial_workQueue(void*),
    }
 
    MPI_Finalize();
-   return 0;
+   pthread_exit(NULL);
 }
 
-void manager(void* generate_initial_workQueue(void*), void* pack_work(work_t), work_t unpack_work(void*),
-  result_t unpack_result (void*), void process_results(result_t, Queue)) {
-   Queue workQueue = qopen();
+
+void* generator_thread(void* threadDataptr) {
+   ThreadData threadData = (ThreadData) threadDataptr;
+   (threadData->generate_initial_workQueue)(threadData->workQueue);
+   generatorComplete=1;
+   pthread_exit(NULL);
+}
+
+void* listener_thread(void* threadDataptr) {
+   ThreadData threadData = (ThreadData) threadDataptr;
+   Queue workQueue = threadData->workQueue;
+   void* (*pack_work)(void*) = threadData->pack_work;
+   void* (*unpack_result)(void*) = threadData->unpack_result;
+   void (*process_results)(void*, Queue) = threadData->process_results;
+
    int numOutstanding = 0; // track outstanding messages to know when to terminate
-
-   //pthread_attr_t attr;
-   //pthread_attr_init(&attr);
-   //pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
-
-   //pthread_create(&callThd[0], &attr, generate_initial_workQueue, workQueue);
-   generate_initial_workQueue(workQueue);
-
    // keep going until workQueue is exhausted and no outstanding nodes
    do {
       // map tasks from queue out if all workers idle
@@ -111,26 +132,50 @@ void manager(void* generate_initial_workQueue(void*), void* pack_work(work_t), w
          }
       }
 
-      // receive a result from an outstanding node
-      result_t result = malloc(sizeof(result_t));
-      msgRecvResult(result);
-      numOutstanding--;
+      if (numOutstanding != 0) {
+         int numResults;
+         MPI_Recv(&numResults, 1, MPI_INT, MPI_ANY_SOURCE, WORKTAG, MPI_COMM_WORLD, &status);
+         for (int i=0; i<numResults; ++i) {
+            // receive a result from an outstanding node
+            result_t result = malloc(sizeof(result_t));
+            msgRecvResult(status.MPI_SOURCE, result);
+            numOutstanding--;
 
-      // process the result (also adding to workQueue)
-      process_results(result, workQueue);
+            // process the result (also adding to workQueue)
+            process_results(result, workQueue);
+         }
 
-      // respond with new work item (if available)
-      work_t work = get_next_work_item(workQueue);
-      if (work != NULL) {
-         int nextNode = (status.MPI_SOURCE + 1) % numTasks;
-         if (nextNode == 0) nextNode++;
-         msgSendWork(nextNode, work);
-         numOutstanding++;
+         // respond with new work item (if available)
+         work_t work = get_next_work_item(workQueue);
+         if (work != NULL) {
+            int nextNode = (status.MPI_SOURCE + 1) % numTasks;
+            if (nextNode == 0) nextNode++;
+            msgSendWork(nextNode, work);
+            numOutstanding++;
+         }
+         free(work);
       }
-      free(work);
-      //printf("queueSize: %i, numOutstanding: %i\n", workQueue->size, numOutstanding);
-   } while (workQueue->size != 0 || numOutstanding != 0);
+   } while (!generatorComplete || workQueue->size != 0 || numOutstanding != 0);
+   pthread_exit(NULL);
+}
 
+void manager(void generate_initial_workQueue(Queue), void* pack_work(work_t), work_t unpack_work(void*),
+  result_t unpack_result (void*), void process_results(result_t, Queue)) {
+   Queue workQueue = qopen();
+
+   ThreadData threadData = malloc(sizeof(SThreadData));
+   threadData->workQueue = workQueue;
+   threadData->generate_initial_workQueue = generate_initial_workQueue;
+   threadData->pack_work = pack_work;
+   threadData->unpack_work = unpack_work;
+   threadData->unpack_result = unpack_result;
+   threadData->process_results = process_results;
+
+   pthread_create(&callThd[0], NULL, generator_thread, (void*) threadData);
+   pthread_create(&callThd[1], NULL, listener_thread, (void*) threadData);
+
+   pthread_join(callThd[0], NULL);
+   pthread_join(callThd[1], NULL);
    // send DIETAG to all workers
    msgKillAll();
 
@@ -144,11 +189,14 @@ void worker(result_t do_work(work_t), void* pack_work(work_t), work_t unpack_wor
    MPI_Status status;
    work_t work = malloc(sizeof(work_t));
    while (1) {
+      int numResults = 0;
       msgRecvWork(MANAGER, work);
       myLoad += 1;
-      result_t result = do_work(work);
 
-      msgSendResult(MANAGER, result);
+      result_t result = do_work(work);
+      numResults++;
+
+      msgSendResult(MANAGER, numResults, result);
       free(result);
    }
    free(work);

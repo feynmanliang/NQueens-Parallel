@@ -9,7 +9,7 @@
 typedef State work_t;
 typedef SuccessorStates result_t;
 
-void* generate_initial_workQueue(void*);
+void generate_initial_workQueue(Queue);
 void* do_work(void* work);
 void process_results(void* result, Queue workQueue);
 void* pack_work(void* work);
@@ -33,14 +33,14 @@ int main(int argc, char **argv) {
    return 0;
 }
 
-void* generate_initial_workQueue(void* queueptr) {
-   Queue workQueue = (Queue) queueptr;
+void generate_initial_workQueue(Queue workQueue) {
+   printf("Generating queue!\n");
    State* initialStates;
    initialStates = generate_initial_states(N);
+   printf("Adding inital states to queue\n");
    for (int i = 0; i < N; ++i) { 
       qput(workQueue, (void *) initialStates[i]); }
    free(initialStates);
-   //pthread_exit((void*) 0);
 }
 
 void* do_work(void* workptr) {
