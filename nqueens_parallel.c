@@ -43,7 +43,14 @@ void generate_initial_workQueue(Queue workQueue) {
 
 void* do_work(void* workptr) {
    work_t work = (work_t) workptr;
-   result_t successors = solve_next_row(work);
+   result_t successors;
+   if (work->numQueens == work->N) {
+      successors = malloc(sizeof(SSuccessorStates));
+      successors->numStates = 1;
+      successors->successorStates = malloc(sizeof(State));
+      successors->successorStates[0] = work;
+   }
+   else { successors = solve_next_row(work); }
    return successors;
 }
 
