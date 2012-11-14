@@ -28,7 +28,7 @@ int main(int argc, char **argv) {
    N = atoi(argv[1]);
    if (argc > 2) depthPerNode = atoi(argv[2]);
 
-   mpi_main(argc, argv, &generate_initial_workQueue, &do_work, 
+   mpi_main(argc, argv, depthPerNode, &generate_initial_workQueue, &do_work, 
      &pack_work, &unpack_work, &pack_result, &unpack_result, &process_results);
    return 0;
 }

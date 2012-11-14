@@ -1,3 +1,4 @@
+#include "nqueens.h"
 #include <mpi.h>
 #include <pthread.h>
 #include <stdio.h>
@@ -36,8 +37,7 @@ typedef void* result_t;
       work = unpack_work(packedWork);\
    }\
 }
-#define msgSendResult(to, numResults, result) {\
-   MPI_Send(&numResults, 1, MPI_INT, to, WORKTAG, MPI_COMM_WORLD);\
+#define msgSendResult(to, result) {\
    void* packedResult = pack_result(result);\
    MPI_Send(packedResult, *((int*)packedResult), MPI_BYTE, to, WORKTAG, MPI_COMM_WORLD);\
 }
@@ -62,13 +62,6 @@ typedef void* result_t;
    return;\
 }
 
-pthread_t callThd[2];
-
-int myrank, numTasks, myLoad, msgSize;
-int generatorComplete = 0;
-double startTime;
-MPI_Status status;
-
 typedef struct sThreadData {
    Queue workQueue;
    void (* generate_initial_workQueue)(Queue);
@@ -83,8 +76,15 @@ typedef SThreadData* ThreadData;
 void* generator_thread(void* threadDataptr);
 void* listener_thread(void* threadDataptr);
 
+pthread_t callThd[2];
+int myrank, numTasks, myLoad, msgSize;
+double startTime;
+MPI_Status status;
 
-int mpi_main(int argc, char **argv, void generate_initial_workQueue(Queue),
+int generatorComplete = 0;
+int depthPerNode;
+
+int mpi_main(int argc, char **argv, int depthPerNode, void generate_initial_workQueue(Queue),
   result_t do_work(work_t), void* pack_work(work_t), work_t unpack_work(void*),
   void* pack_result(result_t), result_t unpack_result(void*), void process_results(result_t, Queue)) {
    startTime = MPI_Wtime();
@@ -187,19 +187,30 @@ void manager(void generate_initial_workQueue(Queue), void* pack_work(work_t), wo
 void worker(result_t do_work(work_t), void* pack_work(work_t), work_t unpack_work(void*), 
   void* pack_result(result_t)) {
    MPI_Status status;
+   Queue workQueue = qopen();
+   Queue resultQueue = qopen();
    work_t work = malloc(sizeof(work_t));
+   result_t result = malloc(sizeof(result_t));
+
    while (1) {
       int numResults = 0;
       msgRecvWork(MANAGER, work);
+
       myLoad += 1;
 
-      result_t result = do_work(work);
+      result = do_work(work);
+      qput(resultQueue, result);
       numResults++;
 
-      msgSendResult(MANAGER, numResults, result);
-      free(result);
+      MPI_Send(&numResults, 1, MPI_INT, MANAGER, WORKTAG, MPI_COMM_WORLD);
+      for (int i=0; i<numResults; ++i) {
+         qget(resultQueue, &result);
+         msgSendResult(MANAGER, result);
+      }
    }
    free(work);
+   qclose(workQueue);
+   qclose(resultQueue);
 }
 
 work_t get_next_work_item(Queue workQueue) {
