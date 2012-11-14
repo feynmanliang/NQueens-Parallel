@@ -135,7 +135,7 @@ void* listener_thread(void* p_queue) {
          }
       }
 
-      else {
+      else if (status.MPI_TAG == WORKTAG) {
          int numResults;
          MPI_Recv(&numResults, 1, MPI_INT, status.MPI_SOURCE, WORKTAG, MPI_COMM_WORLD, &status);
          numOutstanding--;
@@ -147,16 +147,6 @@ void* listener_thread(void* p_queue) {
             // process the result (also adding to workQueue)
             p_process_results(result, workQueue);
          }
-
-         // respond with new work item (if available)
-         work_t work = get_next_work_item(workQueue);
-         if (work != NULL) {
-            int nextNode = (status.MPI_SOURCE);
-            if (nextNode == 0) nextNode++;
-            msgSendWork(nextNode, work);
-            numOutstanding++;
-         }
-         free(work);
       }
    } while (!generatorComplete || workQueue->size != 0 || numOutstanding != 0);
    pthread_exit(NULL);
