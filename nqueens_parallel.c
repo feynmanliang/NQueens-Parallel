@@ -34,10 +34,8 @@ int main(int argc, char **argv) {
 }
 
 void generate_initial_workQueue(Queue workQueue) {
-   printf("Generating queue!\n");
    State* initialStates;
    initialStates = generate_initial_states(N);
-   printf("Adding inital states to queue\n");
    for (int i = 0; i < N; ++i) { 
       qput(workQueue, (void *) initialStates[i]); }
    free(initialStates);

@@ -94,7 +94,7 @@ int mpi_main(int argc, char **argv, int depthPerNode, void generate_initial_work
       manager(generate_initial_workQueue, pack_work, unpack_work, unpack_result, process_results);
    }
    else {
-      worker(do_work, pack_work, unpack_work, pack_result);
+      worker(do_work, pack_work, unpack_work, process_results, pack_result);
    }
 
    MPI_Finalize();
@@ -135,11 +135,11 @@ void* listener_thread(void* threadDataptr) {
       if (numOutstanding != 0) {
          int numResults;
          MPI_Recv(&numResults, 1, MPI_INT, MPI_ANY_SOURCE, WORKTAG, MPI_COMM_WORLD, &status);
+         numOutstanding--;
          for (int i=0; i<numResults; ++i) {
             // receive a result from an outstanding node
             result_t result = malloc(sizeof(result_t));
             msgRecvResult(status.MPI_SOURCE, result);
-            numOutstanding--;
 
             // process the result (also adding to workQueue)
             process_results(result, workQueue);
@@ -176,6 +176,7 @@ void manager(void generate_initial_workQueue(Queue), void* pack_work(work_t), wo
 
    pthread_join(callThd[0], NULL);
    pthread_join(callThd[1], NULL);
+
    // send DIETAG to all workers
    msgKillAll();
 
@@ -185,7 +186,7 @@ void manager(void generate_initial_workQueue(Queue), void* pack_work(work_t), wo
 }
 
 void worker(result_t do_work(work_t), void* pack_work(work_t), work_t unpack_work(void*), 
-  void* pack_result(result_t)) {
+  void process_results(result_t, Queue), void* pack_result(result_t)) {
    MPI_Status status;
    Queue workQueue = qopen();
    Queue resultQueue = qopen();
@@ -195,12 +196,26 @@ void worker(result_t do_work(work_t), void* pack_work(work_t), work_t unpack_wor
    while (1) {
       int numResults = 0;
       msgRecvWork(MANAGER, work);
+      qput(workQueue, work);
 
-      myLoad += 1;
+      for (int depth=0; depth < depthPerNode-1; ++depth) {
+         qget(workQueue, &work);
+         if (work != NULL) {
+            myLoad += 1;
+            result = do_work(work);
+            process_results(result, workQueue);
+         }
+      }
 
-      result = do_work(work);
-      qput(resultQueue, result);
-      numResults++;
+      while (workQueue->size != 0) {
+         qget(workQueue, &work);
+         if (work != NULL) {
+            myLoad += 1;
+            result = do_work(work);
+            qput(resultQueue, result);
+            numResults++;
+         }
+      }
 
       MPI_Send(&numResults, 1, MPI_INT, MANAGER, WORKTAG, MPI_COMM_WORLD);
       for (int i=0; i<numResults; ++i) {
