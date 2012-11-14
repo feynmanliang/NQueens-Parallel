@@ -8,6 +8,7 @@
 
 #define WORKTAG 42
 #define WORKREQ 33
+#define DELAYTAG 23
 #define DIETAG 20
 #define MANAGER 0
 
@@ -116,46 +117,46 @@ void* generator_thread(void* p_queue) {
 
 // this thread serves work to incoming connections and processes results
 void* listener_thread(void* p_queue) {
-   Queue workQueue = (Queue) p_queue; // cumulative queue of all the work left in the problem
-   int numOutstanding = 0; // track outstandingg nodes to know when to terminate
+   Queue workQueue = (Queue) p_queue;
+   int numOutstanding = 0; // track outstanding nodes to know when to terminate
 
    do {
       MPI_Probe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
       if (status.MPI_TAG == WORKREQ) {
          MPI_Recv(0, 0, MPI_INT, status.MPI_SOURCE, WORKREQ, MPI_COMM_WORLD, &status);
-         // only serve something if we kn
-         if (numOutstanding == 0 && workQueue->size != 0) {
-            work_t work = get_next_work_item(workQueue);
+         work_t work = get_next_work_item(workQueue);
+         if (work != NULL) { // we have a work item for you!
             msgSendWork(status.MPI_SOURCE, work);
-            numOutstanding++;
             free(work);
+            numOutstanding++;
+         }
+         else if (!generatorComplete || numOutstanding != 0) { // still chance for new work, come back later
+            MPI_Send(0, 0, MPI_INT, status.MPI_SOURCE, DELAYTAG, MPI_COMM_WORLD);
          }
       }
 
       else {
-         if (numOutstanding != 0) {
-            int numResults;
-            MPI_Recv(&numResults, 1, MPI_INT, status.MPI_SOURCE, WORKTAG, MPI_COMM_WORLD, &status);
-            numOutstanding--;
-            for (int i=0; i<numResults; ++i) {
-               // receive a result from an outstanding node
-               result_t result = malloc(sizeof(result_t));
-               msgRecvResult(status.MPI_SOURCE, result);
+         int numResults;
+         MPI_Recv(&numResults, 1, MPI_INT, status.MPI_SOURCE, WORKTAG, MPI_COMM_WORLD, &status);
+         numOutstanding--;
+         for (int i=0; i<numResults; ++i) {
+            // receive a result from an outstanding node
+            result_t result = malloc(sizeof(result_t));
+            msgRecvResult(status.MPI_SOURCE, result);
 
-               // process the result (also adding to workQueue)
-               p_process_results(result, workQueue);
-            }
-
-            // respond with new work item (if available)
-            work_t work = get_next_work_item(workQueue);
-            if (work != NULL) {
-               int nextNode = (status.MPI_SOURCE);
-               if (nextNode == 0) nextNode++;
-               msgSendWork(nextNode, work);
-               numOutstanding++;
-            }
-            free(work);
+            // process the result (also adding to workQueue)
+            p_process_results(result, workQueue);
          }
+
+         // respond with new work item (if available)
+         work_t work = get_next_work_item(workQueue);
+         if (work != NULL) {
+            int nextNode = (status.MPI_SOURCE);
+            if (nextNode == 0) nextNode++;
+            msgSendWork(nextNode, work);
+            numOutstanding++;
+         }
+         free(work);
       }
    } while (!generatorComplete || workQueue->size != 0 || numOutstanding != 0);
    pthread_exit(NULL);
@@ -187,6 +188,12 @@ void worker() {
 
    MPI_Send(0, 0, MPI_INT, MANAGER, WORKREQ, MPI_COMM_WORLD);
    while (1) {
+      MPI_Probe(MANAGER, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+      if (status.MPI_TAG == DELAYTAG) {
+         MPI_Recv(0, 0, MPI_INT, MANAGER, DELAYTAG, MPI_COMM_WORLD, &status);
+         MPI_Send(0, 0, MPI_INT, MANAGER, WORKREQ, MPI_COMM_WORLD);
+         continue;
+      }
       msgRecvWork(MANAGER, work);
       MPI_Send(0, 0, MPI_INT, MANAGER, WORKREQ, MPI_COMM_WORLD);
       qput(workQueue, work);
